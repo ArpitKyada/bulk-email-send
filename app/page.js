@@ -11,6 +11,7 @@ export default function EmailSender() {
   const [password, setPassword] = useState("");
   const [emails, setEmails] = useState([]); // array of {label, value}
   const [subject, setSubject] = useState("");
+  const [inputValue, setInputValue] = useState("");
   const [status, setStatus] = useState("");
 
   // Initialize editor with localStorage value if present
@@ -62,26 +63,50 @@ export default function EmailSender() {
     setEmails(filtered);
   };
 
-  const handleInputChange = (inputValue, { action }) => {
-    // just accept input normally
+  const handleInputChange = (newValue, { action }) => {
+    if (action !== "input-change") return;
+
+    setInputValue(newValue);
+
+    // Check if the input looks like a pasted list of emails.
+    if (/[,\s;]/.test(newValue)) {
+      const emailsToAdd = newValue
+        .split(/[,\s;]+/)
+        .map((email) => email.trim())
+        .filter(Boolean);
+
+      // If we successfully parsed more than one email, add them
+      if (emailsToAdd.length > 1) {
+        const existingEmailValues = new Set(emails.map(e => e.value));
+        const uniqueNewEmails = [
+          ...new Set(
+            emailsToAdd
+              .filter(isValidEmail)
+              .filter((email) => !existingEmailValues.has(email))
+          ),
+        ];
+
+        if (uniqueNewEmails.length > 0) {
+          const newEmailObjects = uniqueNewEmails.map((email) => ({ label: email, value: email }));
+          setEmails([...emails, ...newEmailObjects]);
+          setInputValue(""); // Clear input after adding
+        }
+      }
+    }
   };
 
   const handleKeyDown = (event) => {
-    if (!event.target.value) return;
+    const currentInputValue = inputValue.trim();
+    if (!currentInputValue) return;
+
     switch (event.key) {
       case "Enter":
       case "Tab":
       case ",":
         event.preventDefault();
-        const inputValue = event.target.value.trim();
-        if (inputValue && isValidEmail(inputValue)) {
-          if (!emails.find((e) => e.value === inputValue)) {
-            setEmails([...emails, { label: inputValue, value: inputValue }]);
-            event.target.value = "";
-          }
-        } else {
-          alert("Invalid email format");
-          event.preventDefault();
+        if (isValidEmail(currentInputValue) && !emails.some(e => e.value === currentInputValue)) {
+          setEmails([...emails, { label: currentInputValue, value: currentInputValue }]);
+          setInputValue(""); // Clear input
         }
         break;
       default:
@@ -155,6 +180,7 @@ export default function EmailSender() {
         <Select
           isMulti
           value={emails}
+          inputValue={inputValue}
           onChange={handleEmailsChange}
           onInputChange={handleInputChange}
           onKeyDown={handleKeyDown}
